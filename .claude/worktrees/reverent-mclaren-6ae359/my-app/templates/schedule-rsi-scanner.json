@@ -1,0 +1,114 @@
+{
+  "name": "Schedule RSI Scanner",
+  "description": "Every 5 minutes: search active Polymarket markets, pull odds for the cheapest YES, evaluate RSI, and place a paper order if oversold.",
+  "metadata": { "category": "trading", "version": "1.0.0", "publishedBy": "zlabs" },
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "data": {
+        "label": "Schedule (every 5m)",
+        "type": "trigger",
+        "config": { "schedule": "*/5 * * * *" }
+      },
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "search",
+      "type": "action",
+      "data": {
+        "label": "Search Markets (BTC)",
+        "type": "action",
+        "config": {
+          "actionType": "zlabs-polymarket/search-markets",
+          "q": "BTC",
+          "active": "true",
+          "limit": "5",
+          "offset": "0"
+        }
+      },
+      "position": { "x": 380, "y": 200 }
+    },
+    {
+      "id": "odds",
+      "type": "action",
+      "data": {
+        "label": "Get Odds (first match)",
+        "type": "action",
+        "config": {
+          "actionType": "zlabs-polymarket/get-odds",
+          "tokenId": "{{search.markets[0].tokenIds[0]}}"
+        }
+      },
+      "position": { "x": 660, "y": 80 }
+    },
+    {
+      "id": "pine",
+      "type": "action",
+      "data": {
+        "label": "Pine Evaluate (RSI<30)",
+        "type": "action",
+        "config": {
+          "actionType": "zlabs-polymarket/pine-evaluate",
+          "symbol": "BTCUSDT",
+          "interval": "1h",
+          "conditions": "[{\"indicator\":\"rsi\",\"period\":14,\"op\":\"<\",\"value\":30,\"action\":\"BUY\"}]"
+        }
+      },
+      "position": { "x": 660, "y": 320 }
+    },
+    {
+      "id": "branch",
+      "type": "action",
+      "data": {
+        "label": "If signal == BUY",
+        "type": "action",
+        "config": {
+          "actionType": "condition",
+          "expression": "{{pine.signal}} == 'BUY'"
+        }
+      },
+      "position": { "x": 940, "y": 200 }
+    },
+    {
+      "id": "order",
+      "type": "action",
+      "data": {
+        "label": "Place Order (paper)",
+        "type": "action",
+        "config": {
+          "actionType": "zlabs-polymarket/place-order",
+          "tokenId": "{{search.markets[0].tokenIds[0]}}",
+          "side": "BUY",
+          "sizeUsd": "25",
+          "paper": "true"
+        }
+      },
+      "position": { "x": 1220, "y": 120 }
+    },
+    {
+      "id": "mirror",
+      "type": "action",
+      "data": {
+        "label": "Mirror to ZLabs",
+        "type": "action",
+        "config": {
+          "actionType": "webhook/http-request",
+          "method": "POST",
+          "url": "${ZLABS_URL}/api/ingest/trade",
+          "headers": "{\"Authorization\":\"Bearer ${ZLABS_INGEST_HMAC}\",\"Content-Type\":\"application/json\"}",
+          "body": "{\"zlabsBotId\":\"${ZLABS_BOT_ID}\",\"workflowId\":\"{{workflow.id}}\",\"executionId\":\"{{execution.id}}\",\"runId\":\"{{execution.runId}}\",\"tokenId\":\"{{order.tokenId}}\",\"marketSlug\":\"{{search.markets[0].slug}}\",\"side\":\"{{order.side}}\",\"signal\":\"{{pine.signal}}\",\"sizeUsd\":\"{{order.sizeUsd}}\",\"price\":\"{{order.price}}\",\"paper\":\"true\",\"orderId\":\"{{order.orderId}}\",\"submittedAt\":\"{{order.submittedAt}}\"}"
+        }
+      },
+      "position": { "x": 1500, "y": 120 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trigger", "target": "search" },
+    { "id": "e2", "source": "search", "target": "odds" },
+    { "id": "e3", "source": "search", "target": "pine" },
+    { "id": "e4", "source": "pine", "target": "branch" },
+    { "id": "e5", "source": "branch", "sourceHandle": "true", "target": "order" },
+    { "id": "e6", "source": "order", "target": "mirror" }
+  ]
+}

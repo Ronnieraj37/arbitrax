@@ -1,0 +1,137 @@
+{
+  "name": "Ensemble Voting Strategy",
+  "description": "Two Pine indicators (RSI + EMA) plus an odds-mid heuristic. Trade only when at least 2 of 3 signals agree on BUY. Paper mode.",
+  "metadata": { "category": "trading", "version": "1.0.0", "publishedBy": "zlabs" },
+  "nodes": [
+    {
+      "id": "trigger",
+      "type": "trigger",
+      "data": {
+        "label": "Webhook Trigger",
+        "type": "trigger",
+        "config": {
+          "method": "POST",
+          "auth": "bearer",
+          "expectedSchema": {
+            "tokenId": "string",
+            "symbol": "string"
+          }
+        }
+      },
+      "position": { "x": 100, "y": 200 }
+    },
+    {
+      "id": "odds",
+      "type": "action",
+      "data": {
+        "label": "Get Odds",
+        "type": "action",
+        "config": {
+          "actionType": "zlabs-polymarket/get-odds",
+          "tokenId": "{{trigger.body.tokenId}}"
+        }
+      },
+      "position": { "x": 380, "y": 60 }
+    },
+    {
+      "id": "pine-rsi",
+      "type": "action",
+      "data": {
+        "label": "Pine RSI<30",
+        "type": "action",
+        "config": {
+          "actionType": "zlabs-polymarket/pine-evaluate",
+          "symbol": "{{trigger.body.symbol}}",
+          "interval": "1h",
+          "conditions": "[{\"indicator\":\"rsi\",\"period\":14,\"op\":\"<\",\"value\":30,\"action\":\"BUY\"}]"
+        }
+      },
+      "position": { "x": 380, "y": 200 }
+    },
+    {
+      "id": "pine-ema",
+      "type": "action",
+      "data": {
+        "label": "Pine EMA crossover",
+        "type": "action",
+        "config": {
+          "actionType": "zlabs-polymarket/pine-evaluate",
+          "symbol": "{{trigger.body.symbol}}",
+          "interval": "1h",
+          "conditions": "[{\"indicator\":\"ema\",\"period\":12,\"op\":\">\",\"value\":0,\"action\":\"BUY\"}]"
+        }
+      },
+      "position": { "x": 380, "y": 340 }
+    },
+    {
+      "id": "vote",
+      "type": "action",
+      "data": {
+        "label": "Voting (threshold:2)",
+        "type": "action",
+        "config": {
+          "actionType": "zlabs-polymarket/voting-aggregate",
+          "votes": "[{\"source\":\"rsi\",\"signal\":\"{{pine-rsi.signal}}\"},{\"source\":\"ema\",\"signal\":\"{{pine-ema.signal}}\"},{\"source\":\"odds\",\"signal\":\"{{odds.mid < 0.45 ? 'BUY' : 'NONE'}}\"}]",
+          "rule": "threshold:2"
+        }
+      },
+      "position": { "x": 660, "y": 200 }
+    },
+    {
+      "id": "branch",
+      "type": "action",
+      "data": {
+        "label": "If decision == BUY",
+        "type": "action",
+        "config": {
+          "actionType": "condition",
+          "expression": "{{vote.decision}} == 'BUY'"
+        }
+      },
+      "position": { "x": 940, "y": 200 }
+    },
+    {
+      "id": "order",
+      "type": "action",
+      "data": {
+        "label": "Place Order (paper)",
+        "type": "action",
+        "config": {
+          "actionType": "zlabs-polymarket/place-order",
+          "tokenId": "{{trigger.body.tokenId}}",
+          "side": "BUY",
+          "sizeUsd": "25",
+          "paper": "true"
+        }
+      },
+      "position": { "x": 1220, "y": 120 }
+    },
+    {
+      "id": "mirror",
+      "type": "action",
+      "data": {
+        "label": "Mirror to ZLabs",
+        "type": "action",
+        "config": {
+          "actionType": "webhook/http-request",
+          "method": "POST",
+          "url": "${ZLABS_URL}/api/ingest/trade",
+          "headers": "{\"Authorization\":\"Bearer ${ZLABS_INGEST_HMAC}\",\"Content-Type\":\"application/json\"}",
+          "body": "{\"zlabsBotId\":\"${ZLABS_BOT_ID}\",\"workflowId\":\"{{workflow.id}}\",\"executionId\":\"{{execution.id}}\",\"runId\":\"{{execution.runId}}\",\"tokenId\":\"{{order.tokenId}}\",\"side\":\"{{order.side}}\",\"signal\":\"{{vote.decision}}\",\"sizeUsd\":\"{{order.sizeUsd}}\",\"price\":\"{{order.price}}\",\"paper\":\"true\",\"orderId\":\"{{order.orderId}}\",\"submittedAt\":\"{{order.submittedAt}}\"}"
+        }
+      },
+      "position": { "x": 1500, "y": 120 }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "trigger", "target": "odds" },
+    { "id": "e2", "source": "trigger", "target": "pine-rsi" },
+    { "id": "e3", "source": "trigger", "target": "pine-ema" },
+    { "id": "e4", "source": "odds", "target": "vote" },
+    { "id": "e5", "source": "pine-rsi", "target": "vote" },
+    { "id": "e6", "source": "pine-ema", "target": "vote" },
+    { "id": "e7", "source": "vote", "target": "branch" },
+    { "id": "e8", "source": "branch", "sourceHandle": "true", "target": "order" },
+    { "id": "e9", "source": "order", "target": "mirror" }
+  ]
+}
