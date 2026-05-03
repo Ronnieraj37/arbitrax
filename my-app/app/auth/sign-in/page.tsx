@@ -1,5 +1,6 @@
 "use client";
 import { signIn } from "next-auth/react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Section from "@/components/ui/section";
@@ -11,9 +12,19 @@ function SignInContent() {
 
   return (
     <Section
-      title="Sign in to Arbitrax"
+      title="Sign in"
       description="Sign in with your Google account to start trading."
     >
+      <div className="mt-2 flex justify-center">
+        <Image
+          src="/logo.png"
+          alt="Arbitrax"
+          width={160}
+          height={48}
+          priority
+          className="h-12 w-auto object-contain"
+        />
+      </div>
       <div className="mt-8 space-y-4 max-w-sm">
         <Button
           className="w-full flex items-center justify-center gap-3"
@@ -52,7 +63,7 @@ export default function SignInPage() {
   return (
     <Suspense
       fallback={
-        <Section title="Sign in to Arbitrax" description="Loading...">
+        <Section title="Sign in" description="Loading...">
           <div />
         </Section>
       }

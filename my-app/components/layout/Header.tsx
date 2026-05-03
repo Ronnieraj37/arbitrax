@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -21,11 +22,15 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-[var(--line)] bg-[var(--white)]/95 backdrop-blur-sm">
       <div className="mx-auto flex h-12 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="grid h-6 w-6 place-items-center rounded-[5px] bg-[var(--ink)] text-[10px] font-bold text-white">
-            A
-          </div>
-          <span className="text-sm font-semibold tracking-tight">Arbitrax</span>
+        <Link href="/" className="flex items-center" aria-label="Arbitrax">
+          <Image
+            src="/logo.png"
+            alt="Arbitrax"
+            width={120}
+            height={36}
+            priority
+            className="h-9 w-auto object-contain"
+          />
         </Link>
 
         <nav className="hidden items-center gap-0.5 sm:flex">
